@@ -1,6 +1,8 @@
 #Service Fabric Journal Service
 A replicated journal on Service Fabric. Demonstrates how to write a persistent, stateful service which uses Service Fabric for replication.
 
+[Common Log File System](https://msdn.microsoft.com/en-us/library/windows/desktop/bb986747(v=vs.85).aspx) (Windows component) is used as the as the store.
+
 ## [Twitter: @ReubenBond](https://twitter.com/reubenbond) :)
 
 I give zero guarantees about any of this. It's surprising that it appears to work at all, it's almost certainly buggy.
