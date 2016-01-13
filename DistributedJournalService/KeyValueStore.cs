@@ -3,25 +3,36 @@ using System.Threading.Tasks;
 
 namespace DistributedJournalService
 {
+    using System;
     using System.Diagnostics;
     using System.Fabric;
+    using System.IO;
     using System.Linq;
+    using System.Security.Cryptography;
     using System.ServiceModel;
+    using System.Text;
     using System.Threading;
 
-    using DistributedJournalService.Events;
     using DistributedJournalService.Interfaces;
+    using DistributedJournalService.Operations;
+    using DistributedJournalService.Utilities;
 
     using Microsoft.ServiceFabric.Services.Communication.Runtime;
     using Microsoft.ServiceFabric.Services.Communication.Wcf.Runtime;
 
+    using ReliableJournal;
+
     [ServiceBehavior(ConcurrencyMode = ConcurrencyMode.Multiple, UseSynchronizationContext = false, InstanceContextMode = InstanceContextMode.Single, IncludeExceptionDetailInFaults = true)]
-    internal class KeyValueStore : IEventSourcedService, IKeyValueStore
+    internal class KeyValueStore : IEventSourcedService<Operation>, IKeyValueStore
     {
         private readonly Dictionary<string, byte[]> store = new Dictionary<string, byte[]>();
 
-        private IEventJournal journal;
-        
+        private IReliableJournal<Operation> journal;
+
+        private long replicaId;
+
+        private Guid partitionId;
+
         /// <summary>
         /// Creates and returns a communication listener.
         /// </summary>
@@ -33,6 +44,8 @@ namespace DistributedJournalService
         /// </returns>
         public ICommunicationListener CreateCommunicationListener(StatefulServiceInitializationParameters initializationParameters)
         {
+            this.replicaId = initializationParameters.ReplicaId;
+            this.partitionId = initializationParameters.PartitionId;
             return new WcfCommunicationListener(initializationParameters, typeof(IKeyValueStore), this)
             {
                 Binding = ServiceBindings.TcpBinding,
@@ -41,33 +54,68 @@ namespace DistributedJournalService
         }
 
         /// <summary>
-        /// Applies the provided <paramref name="event"/>.
+        /// Applies the provided <paramref name="operation"/>.
         /// </summary>
-        /// <param name="event">The event.</param>
+        /// <param name="operation">The event.</param>
         /// <param name="cancellationToken">The cancellation token.</param>
         /// <returns>A <see cref="Task"/> representing the work performed.</returns>
-        public Task Apply(Event @event, CancellationToken cancellationToken)
+        public Task Apply(Operation operation, CancellationToken cancellationToken)
         {
-            // TODO: use some better dispatching system here.
-            var set = @event as SetValueEvent;
+#warning TODO: use some better dispatching system here.
+            var set = operation as SetValueOperation;
             if (set != null)
             {
                 this.store[set.Key] = set.Value;
             }
 
-            var remove = @event as RemoveValueEvent;
+            var remove = operation as RemoveValueOperation;
             if (remove != null)
             {
                 this.store.Remove(remove.Key);
             }
 
-            var get = @event as GetValueEvent;
+            var get = operation as GetValueOperation;
             if (get != null)
             {
                 // do nothing.
             }
 
+            var debug = operation as DumpDebugDataOperation;
+            if (debug != null)
+            {
+                return this.ApplyDumpDebugData(debug.Directory, debug.Prefix);
+            }
+
             return Task.FromResult(0);
+        }
+
+        public async Task ApplyDumpDebugData(string directory, string prefix)
+        {
+            var outputPath = Path.Combine(
+                directory,
+                $"{prefix}_{this.partitionId.ToString("N")}_{this.replicaId.ToString("X")}.txt");
+            using (var file = File.OpenWrite(outputPath))
+            using (var writer = new StreamWriter(file, Encoding.UTF8))
+                using (var mem = new MemoryStream())
+            using (var sha = new SHA512Managed())
+            {
+                sha.Initialize();
+                foreach (var entry in this.store)
+                {
+                    var keyBytes = Encoding.UTF8.GetBytes(entry.Key);
+                    mem.Write(keyBytes, 0, keyBytes.Length);
+                    mem.Write(entry.Value, 0, entry.Value.Length);
+
+                    await writer.WriteLineAsync($"{entry.Key} = {entry.Value.ToHexString()}");
+                }
+
+                mem.Seek(0, SeekOrigin.Begin);
+                var hash = sha.ComputeHash(mem);
+                var hashString = $"HASH: {hash.ToHexString()}";
+                await writer.WriteLineAsync(hashString);
+                Debug.WriteLine(hashString);
+                ServiceEventSource.Current.Message(hashString);
+            }
         }
 
         /// <summary>
@@ -78,7 +126,7 @@ namespace DistributedJournalService
         /// <returns>
         /// The address of this service, which clients can find using service discovery.
         /// </returns>
-        public Task Open(IEventJournal journal, CancellationToken cancellationToken)
+        public Task Open(IReliableJournal<Operation> journal, CancellationToken cancellationToken)
         {
             this.journal = journal;
             
@@ -114,24 +162,31 @@ namespace DistributedJournalService
 
         public async Task<byte[]> Get(string key)
         {
-            return await this.journal.ReplicateAndApply(new GetValueEvent(key), () => this.store[key], CancellationToken.None).ConfigureAwait(false);
+            return await this.journal.Commit(new GetValueOperation(key), () => this.store[key], CancellationToken.None).ConfigureAwait(false);
         }
 
         public Task Set(string key, byte[] value)
         {
-            return this.journal.ReplicateAndApply(new SetValueEvent(key, value), CancellationToken.None);
+            return this.journal.Commit(new SetValueOperation(key, value), CancellationToken.None);
         }
 
         public Task Remove(string key)
         {
-            return this.journal.ReplicateAndApply(new RemoveValueEvent(key), CancellationToken.None);
+            return this.journal.Commit(new RemoveValueOperation(key), CancellationToken.None);
         }
 
         public Task<List<string>> GetKeys()
         {
-            return this.journal.ReplicateAndApply(
-                new GetValueEvent(null),
+            return this.journal.Commit(
+                new GetValueOperation(null),
                 () => this.store.Keys.ToList(),
+                CancellationToken.None);
+        }
+
+        public Task DumpDebugData(string directory, string prefix)
+        {
+            return this.journal.Commit(
+                new DumpDebugDataOperation { Directory = directory, Prefix = prefix },
                 CancellationToken.None);
         }
     }

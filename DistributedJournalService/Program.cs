@@ -4,8 +4,6 @@ using System.Threading;
 
 namespace DistributedJournalService
 {
-    using DistributedJournalService.Replica;
-
     internal static class Program
     {
         /// <summary>
@@ -33,23 +31,6 @@ namespace DistributedJournalService
                 ServiceEventSource.Current.ServiceHostInitializationFailed(e.ToString());
                 throw;
             }
-        }
-    }
-
-    internal class ServiceFactory : IStatefulServiceFactory {
-        /// <summary>
-        /// Return an instance of a service
-        ///             The framework will set the serviceTypeName, serviceName, initializationData, partitionId and instanceId properties on the service
-        /// </summary>
-        /// <returns/>
-        public IStatefulServiceReplica CreateReplica(
-            string serviceTypeName,
-            Uri serviceName,
-            byte[] initializationData,
-            Guid partitionId,
-            long replicaId)
-        {
-            return new JournalReplica(new KeyValueStore());
         }
     }
 }

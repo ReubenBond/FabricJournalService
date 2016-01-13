@@ -18,5 +18,8 @@ namespace DistributedJournalService.Interfaces
 
         [OperationContract]
         Task<List<string>> GetKeys();
+
+        [OperationContract]
+        Task DumpDebugData(string directory, string prefix);
     }
 }

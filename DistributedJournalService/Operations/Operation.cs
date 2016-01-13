@@ -1,14 +1,13 @@
-﻿using System;
-
-namespace DistributedJournalService.Operations
+﻿namespace DistributedJournalService.Operations
 {
     using ProtoBuf;
 
     [ProtoContract]
-    [ProtoInclude(1, typeof(AppendEventOperation))]
-    [ProtoInclude(2, typeof(ProgressVectorUpdateOperation))]
-    [Serializable]
-    internal class Operation
+    [ProtoInclude(1, typeof(SetValueOperation))]
+    [ProtoInclude(2, typeof(RemoveValueOperation))]
+    [ProtoInclude(3, typeof(GetValueOperation))]
+    [ProtoInclude(4, typeof(DumpDebugDataOperation))]
+    internal abstract class Operation
     {
         protected Operation() { }
     }
