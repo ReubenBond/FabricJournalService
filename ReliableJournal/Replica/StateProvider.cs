@@ -209,6 +209,7 @@
 
         public IEnumerable<LogRecord> GetOperations()
         {
+#warning this should only return operations which are consistent with the progress vector / current epoch.
             return this.operationLog.GetAllRecords();
         }
     }

@@ -92,6 +92,7 @@ namespace ReliableJournal.Log
             return this.log.AppendAsync(record, nextUndoRecord, previousRecord, options);
         }
 
+#warning Implement batching of entries to log file.
         public Task<SequenceNumber> Append(
             IList<ArraySegment<byte>> record,
             SequenceNumber nextUndoRecord,

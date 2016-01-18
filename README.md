@@ -5,7 +5,7 @@ A replicated journal on Service Fabric. Demonstrates how to write a persistent, 
 
 ## [Twitter: @ReubenBond](https://twitter.com/reubenbond) :)
 
-I give zero guarantees about any of this. It's surprising that it appears to work at all, it's almost certainly buggy.
+I give zero guarantees about any of this. It's surprising that it appears to work at all, it is certainly not a correct implementation (see, for example, the `#warning`s in code where some correctness issues are highlighted).
 
 1. Install Service Fabric SDK.
 2. Open in VS 2015, and deploy the application to your local cluster.
