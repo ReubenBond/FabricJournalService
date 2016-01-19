@@ -14,3 +14,7 @@ I give zero guarantees about any of this. It's surprising that it appears to wor
 Also check out [Fabric Table Service](https://github.com/ReubenBond/FabricTableService), a distributed database on Service Fabric which uses ESENT as the storage engine and co-operates transactionally with Fabric's provided `IReliableDictionary` & `IReliableQueue`.
 
 There is significant room for optimization, this project was just a learning excercise.
+
+TODO:
+* Don't persist consistent read operations, merely replicate them.
+* Test everything...
